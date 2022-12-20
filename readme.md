@@ -2,8 +2,8 @@
 
 
 ## About
-- REST API: Stateless, client-independent.
-- GraphQL API: Stateless, client-independent API for exchanging data with higher query flexibility
+- REST API: Stateless, client-independent API for exchanging data.
+- GraphQL API: Stateless, client-independent API for exchanging data with **higher query flexibility**
 - API Cons. Require lots and lots of endpoints. API with params becomes hard to understand.
 - GraphQL only send a POST request even if getting data. The POST request contains query expression to define the data that should be returned.
 JSON object like structure
@@ -314,7 +314,7 @@ module.exports = {
         return res.json();
       })
 ```
-- there is an error in the front end where the OPTIONS method is Not Allowed. OPTION are sent before the GET, POST, PATCH, PUT, DELETE requests. Express graphql automatically declines anything that is not POST or GET request . To fix this, make `req.method` for `OPTIONS` equal 200.
+- there is an error in the front end where the OPTIONS method is Not Allowed. OPTION are sent before the GET, POST, PATCH, PUT, DELETE requests. Express graphql automatically declines anything that is not POST or GET request. To fix this, make `req.method` for `OPTIONS` equal 200.
 ```
 // backend project folder /app.js
 app.use((req, res, next) => {
@@ -331,3 +331,93 @@ app.use((req, res, next) => {
 ```
 
 
+## Authentication
+- To enable user authentication, in schema.js, define a query that requires login details
+- Firstly, schema must be able to handle user login. Example code implementation
+```
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+        posts(page: Int): PostData!
+        post(id: ID!): Post!
+        user: User!
+    }
+```
+- Then, define the user token from front end. See JWT in 01_api_node_js.
+```
+    type AuthData {
+        token: String!
+        userId: String!
+    }
+```
+- Then in resolvers, create a method/function to handle this. The methods called in resolvers are similar to JWT setup in 01_api_node_js.
+```
+login: async function({ email, password }) { ... },
+```
+- In front end, create a login handler to send login request and save the JWT response.
+```
+loginHandler = (event, authData) => { ... };
+```
+- Before creating a post, check if user is authenticated then extract user data from JWT with graphql. First make changes to auth in middleware
+```
+const auth = require('./middleware/auth');
+app.use(auth);
+```
+then in resolvers
+```
+createPost: async function({ postInput }, req) {
+  
+  ...
+
+  if (!req.isAuth) {
+    const error = new Error('Not authenticated!');
+    error.code = 401;
+    throw error;
+  }
+
+  ...
+
+  const user = await User.findById(req.userId);
+  if (!user) {
+    const error = new Error('Invalid user.');
+    error.code = 401;
+    throw error;
+  }
+
+  ...  
+
+},
+- creating a post in front end
+```
+  let graphqlQuery = {
+    query: `
+    mutation CreateNewPost($title: String!, $content: String!, $imageUrl: String!) {
+      createPost(postInput: {title: $title, content: $content, imageUrl: $imageUrl}) {
+        _id
+        title
+        content
+        imageUrl
+        creator {
+          name
+        }
+        createdAt
+      }
+    }
+  `,
+    variables: {
+      title: postData.title,
+      content: postData.content,
+      imageUrl: imageUrl
+    }
+  };
+
+  ...
+
+  return fetch('http://localhost:8080/graphql', {
+    method: 'POST',
+    body: JSON.stringify(graphqlQuery),
+    headers: {
+      Authorization: 'Bearer ' + this.props.token,
+      'Content-Type': 'application/json'
+    }
+  });
+```
