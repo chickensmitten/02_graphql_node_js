@@ -735,4 +735,4 @@ finishEditHandler = postData => {
 ```
 - Take note that the types declared in the front end have to match the types in backend schema types.
 - `FetchPosts` can be any name.
-- `query` before `query FetchPosts` and `posts` that comes after it, should match schema's `posts` in `RootQuery` and resolver's `posts`.
+- `query` before `query FetchPosts` and `posts` that comes after it, should match backend's schema's `posts` in `RootQuery` and resolver's `posts`.
