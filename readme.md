@@ -87,6 +87,42 @@ which will return
   }
 }
 ```
+- in "schema.js" there are three types `input`, `types` and `schema`.
+- `schema` normally contains `RootQuery` to GET data, while `RootMutation` is to manipulate (PATCH, PUT, POST, DELETE) data.
+- `input` is used as inputs. see `input UserInputData { ... }` in `createUser(userInput: UserInputData): User!`
+- `type` is used as outputs. see `type PostData { ... }` in `posts(page: Int): PostData!`
+```
+    type PostData {
+        posts: [Post!]!
+        totalPosts: Int!
+    }
+
+    input UserInputData {
+        email: String!
+        name: String!
+        password: String!
+    }
+
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+        posts(page: Int): PostData!
+        post(id: ID!): Post!
+        user: User!
+    }
+
+    type RootMutation {
+        createUser(userInput: UserInputData): User!
+        createPost(postInput: PostInputData): Post!
+        updatePost(id: ID!, postInput: PostInputData): Post!
+        deletePost(id: ID!): Boolean
+        updateStatus(status: String!): User!
+    }
+
+    schema {
+        query: RootQuery
+        mutation: RootMutation
+    }    
+```
 
 ## Mutations
 - Example in using mutations in graphql
@@ -622,7 +658,7 @@ finishEditHandler = postData => {
 - in resolvers, `updatePost: async function({ id, postInput }, req) { ... }`. `id` and `postInput` is extracted using a descontructor. then add logic to get post from the database and return results.
 - then in front end
 ```
-// /src/pages/feed/feed.js
+// front end code /src/pages/feed/feed.js
   ...
         if (this.state.editPost) {
           graphqlQuery = {
@@ -664,3 +700,39 @@ finishEditHandler = postData => {
 - create a schema in `RootMutation`
 - create `deletePost` in resolver with logic and return if success. In this example, have to remove images in local storage, remove the user dependency because a post is associated to a user. Wrap the functions in try catch in case of error.
 - in front end, find the handler `deletePostHandler` then handler the delete function.
+
+
+## Using Variables
+- Using variables in graphQL. String interpolation with `${String}` is not a recommended way to add variables in graphql queries.
+- This is done by declaring variables in the front end. 
+- For example, add `FetchPosts` and the `$page: Int` variables to be used. Then `$page` can be called in the query below. `, variables: { page: page }` is added to enable this.
+```
+// front end code /src/pages/feed/feed.js
+    const graphqlQuery = {
+      query: `
+        query FetchPosts($page: Int, $variable2: String, $variable3: ID) {
+          posts(page: $page) {
+            posts {
+              _id
+              title
+              content
+              imageUrl
+              creator {
+                name
+              }
+              createdAt
+            }
+            totalPosts
+          }
+        }
+      `,
+      variables: {
+        page: page,
+        variable2: some.variable.2,
+        variable3: some.variable.3
+      }
+    };
+```
+- Take note that the types declared in the front end have to match the types in backend schema types.
+- `FetchPosts` can be any name.
+- `query` before `query FetchPosts` and `posts` that comes after it, should match schema's `posts` in `RootQuery` and resolver's `posts`.
