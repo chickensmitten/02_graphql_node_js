@@ -20,7 +20,7 @@ JSON object like structure
 - Three operations types: Query to retrieve Data with GET, Mutation to manipulate Data with (POST, PUT, PATCH, DELETE), Subscription by setting up realtime connection via Websockets
 - GraphQL workflow: client -> POST request to graphQL -> Route operations like Query, Mutation, Subscription in schema to define the data structure -> Controller like functions are resolvers that contain server side logic to resolve queries
 - In using GraphSQL, Apollo server is also a famous alternative to Express server.
-
+- This project is associated to another react front end project [02_graphql_node_js_frontend](https://github.com/chickensmitten/02_graphql_node_js_frontend)
 
 ## Setup
 - Install graphql and express graphql `npm install --save graphql express-graphql`
@@ -425,17 +425,16 @@ createPost: async function({ postInput }, req) {
 
 
 ## Pagination
-- to get pagination, add an argument as `page: Int` in `post`
+- to get pagination, add an argument as `page: Int` in `post` in schema. 
 ```
 // /graphql/schema.js
     type RootQuery {
-        login(email: String!, password: String!): AuthData!
+        ...
         posts(page: Int): PostData!
-        post(id: ID!): Post!
-        user: User!
+        ...
     }
 ```
-- in resolver, get the `page` property, then use `page`
+- in resolver, get the `page` property, then use `page`. `page` is extracted with deconstructor.
 ```
 posts: async function({ page }, req) { 
 
@@ -549,3 +548,119 @@ finishEditHandler = postData => {
 
 }
 ```
+
+## Getting Single Post
+- add `id: ID!` to `post` in `RootQuery` schema
+```
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+        posts(page: Int): PostData!
+        post(id: ID!): Post!
+        user: User!
+    }
+```
+- add `post: async function({ id }, req) { ... },` to resolver. `id` is extracted using a descontructor. then add logic to get post from the database and return results.
+- Then in front end, 
+```
+// /src/pages/Feed/SinglePost/SinglePost.js
+    const postId = this.props.match.params.postId;
+    const graphqlQuery = {
+      query: `query FetchSinglePost($postId: ID!) {
+          post(id: $postId) {
+            title
+            content
+            imageUrl
+            creator {
+              name
+            }
+            createdAt
+          }
+        }
+      `,
+      variables: {
+        postId: postId
+      }
+    };
+    fetch('http://localhost:8080/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(graphqlQuery)
+    })
+      .then(res => {
+        return res.json();
+      })
+      .then(resData => {
+        if (resData.errors) {
+          throw new Error('Fetching post failed!');
+        }
+        this.setState({
+          title: resData.data.post.title,
+          author: resData.data.post.creator.name,
+          image: 'http://localhost:8080/' + resData.data.post.imageUrl,
+          date: new Date(resData.data.post.createdAt).toLocaleDateString('en-US'),
+          content: resData.data.post.content
+        });
+      })
+      .catch(err => {
+        console.log(err);
+      });
+```
+
+## Updating/Editing Single Post
+- add `id: ID!, postInput: PostInputData` to `updatePost` in `RootMutation` schema
+```
+
+    type RootMutation {
+        ...
+        updatePost(id: ID!, postInput: PostInputData): Post!
+        ...
+    }
+```
+- in resolvers, `updatePost: async function({ id, postInput }, req) { ... }`. `id` and `postInput` is extracted using a descontructor. then add logic to get post from the database and return results.
+- then in front end
+```
+// /src/pages/feed/feed.js
+  ...
+        if (this.state.editPost) {
+          graphqlQuery = {
+            query: `
+              mutation UpdateExistingPost($postId: ID!, $title: String!, $content: String!, $imageUrl: String!) {
+                updatePost(id: $postId, postInput: {title: $title, content: $content, imageUrl: $imageUrl}) {
+                  _id
+                  title
+                  content
+                  imageUrl
+                  creator {
+                    name
+                  }
+                  createdAt
+                }
+              }
+            `,
+            variables: {
+              postId: this.state.editPost._id,
+              title: postData.title,
+              content: postData.content,
+              imageUrl: imageUrl
+            }
+          };
+        }
+
+        return fetch('http://localhost:8080/graphql', {
+          method: 'POST',
+          body: JSON.stringify(graphqlQuery),
+          headers: {
+            Authorization: 'Bearer ' + this.props.token,
+            'Content-Type': 'application/json'
+          }
+        });
+  ...
+```
+
+## Deleting Single Post
+- create a schema in `RootMutation`
+- create `deletePost` in resolver with logic and return if success. In this example, have to remove images in local storage, remove the user dependency because a post is associated to a user. Wrap the functions in try catch in case of error.
+- in front end, find the handler `deletePostHandler` then handler the delete function.
