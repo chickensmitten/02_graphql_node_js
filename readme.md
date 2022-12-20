@@ -386,6 +386,7 @@ createPost: async function({ postInput }, req) {
   ...  
 
 },
+```
 - creating a post in front end
 ```
   let graphqlQuery = {
@@ -420,4 +421,131 @@ createPost: async function({ postInput }, req) {
       'Content-Type': 'application/json'
     }
   });
+```
+
+
+## Pagination
+- to get pagination, add an argument as `page: Int` in `post`
+```
+// /graphql/schema.js
+    type RootQuery {
+        login(email: String!, password: String!): AuthData!
+        posts(page: Int): PostData!
+        post(id: ID!): Post!
+        user: User!
+    }
+```
+- in resolver, get the `page` property, then use `page`
+```
+posts: async function({ page }, req) { 
+
+  ...
+
+  if (!page) {
+    page = 1;
+  }
+
+  ...
+
+},
+```
+- in front end, fetch posts with page pagination
+```
+    const graphqlQuery = {
+      query: `
+        query FetchPosts($page: Int) {
+          posts(page: $page) {
+            posts {
+              _id
+              title
+              content
+              imageUrl
+              creator {
+                name
+              }
+              createdAt
+            }
+            totalPosts
+          }
+        }
+      `,
+      variables: {
+        page: page
+      }
+    };
+    fetch('http://localhost:8080/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + this.props.token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(graphqlQuery)
+    })
+```
+
+
+## Image Upload
+- graphql only works with JSON data. Doesn't work with images. So to upload images, have to use back classic endpoint
+```
+// /app.js 
+app.put('/post-image', (req, res, next) => {
+  if (!req.isAuth) {
+    throw new Error('Not authenticated!');
+  }
+  if (!req.file) {
+    return res.status(200).json({ message: 'No file provided!' });
+  }
+  if (req.body.oldPath) {
+    clearImage(req.body.oldPath);
+  }
+  return res
+    .status(201)
+    .json({ message: 'File stored.', filePath: req.file.path });
+});
+```
+- then in front end, upload the image to cloud storage with classic API endpoint. Because in this example, we are storing the image in local storage, once stored, get the image file path and send it along with the graphql query.
+```
+finishEditHandler = postData => {
+  
+  ...
+
+  formData.append('image', postData.image);
+  if (this.state.editPost) {
+    formData.append('oldPath', this.state.editPost.imagePath);
+  }
+  fetch('http://localhost:8080/post-image', {
+    method: 'PUT',
+    headers: {
+      Authorization: 'Bearer ' + this.props.token
+    },
+    body: formData
+  })
+    .then(res => res.json())
+    .then(fileResData => {
+      const imageUrl = fileResData.filePath || 'undefined';
+      let graphqlQuery = {
+        query: `
+        mutation CreateNewPost($title: String!, $content: String!, $imageUrl: String!) {
+          createPost(postInput: {title: $title, content: $content, imageUrl: $imageUrl}) {
+            _id
+            title
+            content
+            imageUrl
+            creator {
+              name
+            }
+            createdAt
+          }
+        }
+      `,
+        variables: {
+          title: postData.title,
+          content: postData.content,
+          imageUrl: imageUrl
+        }
+      };
+
+  ...
+
+}
 ```
